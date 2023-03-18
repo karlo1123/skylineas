@@ -52,7 +52,7 @@ local function calculateDamage(distance, name, data)
 end
 
 do -- ui
-    theme.font = 5;
+    theme.font = 3;
     theme.accent = Color3.new(math.random(), math.random(), math.random());
 
     local window = ui:New({ name = "Skyline" });
