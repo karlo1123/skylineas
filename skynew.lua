@@ -52,10 +52,10 @@ local function calculateDamage(distance, name, data)
 end
 
 do -- ui
-    theme.font = 3;
+    theme.font = 1;
     theme.accent = Color3.new(math.random(), math.random(), math.random());
 
-    local window = ui:New({ name = "Skyline" });
+    local window = ui:New({ name = "skyline" });
     window.uibind = Enum.KeyCode.RightShift;
     window.VisualPreview:SetPreviewState(false);
 
