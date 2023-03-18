@@ -44,18 +44,11 @@ for _, module in next, getloadedmodules() do
     end
 end
 
--- functions
-local function calculateDamage(distance, name, data)
-    local damage = distance < data.range0 and data.damage0 or (distance < data.range1 and (((data.damage1 - data.damage0) / (data.range1 - data.range0)) * (distance - data.range0)) + data.damage0 or data.damage1);
-    local multiplier = name == "Head" and data.multhead or (name == "Torso" and data.multtorso or data.multlimb or 1);
-    return damage * multiplier;
-end
-
 do -- ui
-    theme.font = 1;
+    theme.font = 3;
     theme.accent = Color3.new(math.random(), math.random(), math.random());
 
-    local window = ui:New({ name = "skyline" });
+    local window = ui:New({ name = "Skyline.technologies priv" });
     window.uibind = Enum.KeyCode.RightShift;
     window.VisualPreview:SetPreviewState(false);
 
@@ -67,7 +60,7 @@ do -- ui
         ragebot:Toggle({ name = "shot limiter", pointer = "rage_ragebot_shotlimiter" });
         ragebot:Toggle({ name = "custom firerate", pointer = "rage_ragebot_customfirerate" });
         ragebot:Slider({ name = "firerate", min = 10, max = 1500, def = 250, pointer = "rage_ragebot_firerate" });
-        ragebot:Dropdown({ name = "hitpart", options = {"Head", "Torso"}, pointer = "rage_ragebot_hitpart" });
+        ragebot:Dropdown({ name = "hitpart", options = {"head", "torso"}, pointer = "rage_ragebot_hitpart" });
         ragebot:Dropdown({ name = "target method", options = {"closest", "looking at"}, pointer = "rage_ragebot_targetmethod" });
 
         --local teleportbot = rage:Section({ name = "teleport bot", side = "left" });
@@ -83,7 +76,8 @@ do -- ui
         scanning:Toggle({ name = "target scanning", pointer = "rage_scanning_targetscanning" });
         scanning:Slider({ name = "target radius", min = 1, max = 5, decimals = 0.5, def = 3.5, pointer = "rage_scanning_targetscanning_radius" });
         --scanning:Toggle({ name = "teleport scanning", pointer = "rage_scanning_teleportscanning" });
-        --scanning:Slider({ name = "teleport radius", min = 1, max = 200, def = 20, pointer = "rage_scanning_teleportscanning_radius" });
+        --scanning:Slider({ name = "teleport radius", min = 1, max = 150, decimals = 0.5, def = 100, pointer = "rage_scanning_teleportscanning_radius" });
+        --scanning:Dropdown({ name = "teleport direction", options = {"up", "down"}, pointer = "rage_scanning_teleportscanning_direction" });
     end
 
     local esp = window:Page({ name = "esp" });
@@ -122,20 +116,22 @@ do -- ragebot
         local origins = { CFrame.new(replicationPosition, position) };
         local targets = { CFrame.new(position, replicationPosition) };
 
+        -- add points
         if pointers.rage_scanning_enabled.current then
+            local origin = origins[1];
+            local target = targets[1];
             for _, id in next, normalIds do
                 local dir = Vector3.fromNormalId(id);
-
                 if pointers.rage_scanning_fireposscanning.current then
-                    table.insert(origins, origins[1] + dir * math.clamp(pointers.rage_scanning_fireposscanning_radius.current, 1, 9.5));
+                    table.insert(origins, origin + dir * math.clamp(pointers.rage_scanning_fireposscanning_radius.current, 1, 9.5));
                 end
-
                 if pointers.rage_scanning_targetscanning.current then
-                    table.insert(targets, targets[1] + dir * math.clamp(pointers.rage_scanning_targetscanning_radius.current, 1, 4.5));
+                    table.insert(targets, target + dir * math.clamp(pointers.rage_scanning_targetscanning_radius.current, 1, 4.5));
                 end
             end
         end
 
+        -- scan points
         for _, origin in next, origins do
             origin = origin.Position;
             for _, target in next, targets do
@@ -151,27 +147,44 @@ do -- ragebot
 
     local function getTarget(data)
         local _min = math.huge;
-        local _player, _scan, _entry;
+        local _player, _scan, _entry, _part;
+        local cframe = camera.CFrame;
         for player, entry in next, modules.entryTable do
-            local tpObject = entry and entry._thirdPersonObject;
-            local char = tpObject and tpObject._character;
-            if char and player.Team ~= localPlayer.Team and (health[player] or entry:getHealth()) > 0 then
-                local cframe = camera.CFrame;
-                local position = char[pointers.rage_ragebot_hitpart.current].Position;
-                local scan = scanTarget(position, data);
-                local dir = cframe.Position - position;
-                local comparison = pointers.rage_ragebot_targetmethod.current == "looking at" and
-                    cframe.LookVector:Dot(dir.Unit) or dir.Magnitude;
+            if player.Team == localPlayer.Team or not entry:isAlive() or (health[player] or entry:getHealth()) < 1 then
+                continue;
+            end
 
-                if comparison < _min and scan then
-                    _min = comparison;
-                    _player = player;
-                    _scan = scan;
-                    _entry = entry;
-                end
+            -- get body part
+            local tpObject = entry and entry:getThirdPersonObject();
+            local part = tpObject and tpObject:getBodyPart(pointers.rage_ragebot_hitpart.current);
+            if not part then
+                continue;
+            end
+
+            -- check priority
+            local dir = cframe.Position - part.Position;
+            local min = pointers.rage_ragebot_targetmethod.current == "looking at" and cframe.LookVector:Dot(dir.Unit) or dir.Magnitude;
+            if min >= _min then
+                continue;
+            end
+
+            -- scan player
+            local scan = scanTarget(part.Position, data);
+            if scan then
+                _min = min;
+                _player = player;
+                _scan = scan;
+                _entry = entry;
+                _part = part;
             end
         end
-        return _player, _scan, _entry;
+        return _player, _scan, _entry, _part;
+    end
+
+    local function calculateDamage(distance, name, data)
+        local damage = distance < data.range0 and data.damage0 or (distance < data.range1 and (((data.damage1 - data.damage0) / (data.range1 - data.range0)) * (distance - data.range0)) + data.damage0 or data.damage1);
+        local multiplier = name == "Head" and data.multhead or (name == "Torso" and data.multtorso or data.multlimb or 1);
+        return damage * multiplier;
     end
 
     -- hooks
@@ -197,98 +210,104 @@ do -- ragebot
     -- connections
     utils:Connection(runService.Heartbeat, function()
         if pointers.rage_ragebot_enabled.current and modules.character.isAlive() then
+            -- get weapon
             local controller = modules.weaponController.getController();
             local weapon = controller and controller:getActiveWeapon();
-            local data = weapon and weapon._weaponData;
-            if data and weapon.getFirerate then
-                local deltaTime = tick() - lastShot;
-                local fireRate = 60 / weapon:getFirerate();
-                if deltaTime < (pointers.rage_ragebot_customfirerate.current and 60/pointers.rage_ragebot_firerate.current or fireRate) then
-                    return;
+            local data = weapon and weapon:getWeaponData();
+            if not data or not weapon.getFirerate then
+                return;
+            end
+
+            -- check timing
+            local deltaTime = tick() - lastShot;
+            local fireRate = 60 / weapon:getFirerate();
+            if deltaTime < (pointers.rage_ragebot_customfirerate.current and 60/pointers.rage_ragebot_firerate.current or fireRate) then
+                return;
+            end
+
+            lastShot = tick();
+
+            -- get target
+            local player, scan, entry, part = getTarget(data);
+            if not player then
+                return;
+            end
+
+            -- bypass firerate check
+            local syncedTime = modules.network:getTime();
+            if deltaTime < fireRate then
+                replicationTickOffset += fireRate - deltaTime;
+                modules.network:send("repupdate", replicationPosition, replicationAngles, syncedTime);
+            end
+
+            -- creating bullet(s)
+            local bulletCount = data.pelletcount or 1;
+            local bulletId = debug.getupvalue(weapon.fireRound, 10);
+            local bullets = table.create(bulletCount, { scan.velocity, bulletId });
+
+            for i, v in next, bullets do
+                v[2] += i;
+            end
+
+            debug.setupvalue(weapon.fireRound, 10, bulletId + bulletCount);
+
+            -- registering bullet(s)
+            modules.network:send("newbullets", {
+                firepos = scan.origin,
+                camerapos = replicationPosition,
+                bullets = bullets
+            }, syncedTime);
+
+            -- effects
+            modules.sound.PlaySoundId(data.firesoundid, data.firevolume, data.firepitch, weapon._barrelPart, nil, 0, 0.05);
+            modules.effects:muzzleflash(weapon._barrelPart, data.hideflash);
+
+            for _, bullet in next, bullets do
+                modules.particle.new({
+                    size = 0.2,
+                    bloom = 0.005,
+                    brightness = 400,
+                    dt = deltaTime,
+                    position = scan.origin,
+                    velocity = bullet[1],
+                    life = modules.settings.bulletLifeTime,
+                    acceleration = modules.settings.bulletAcceleration,
+                    color = data.bulletcolor or Color3.fromRGB(200, 70, 70),
+                    visualorigin = weapon._barrelPart.Position,
+                    physicsignore = ignoreList,
+                    penetrationdepth = data.penetrationdepth,
+                    tracerless = data.tracerless
+                });
+            end
+
+            -- updating magazine
+            weapon._magCount -= 1;
+            if weapon._magCount < 1 then
+                local newCount = data.magsize + (data.chamber and 1 or 0) + weapon._magCount;
+                if weapon._spareCount >= newCount then
+                    weapon._magCount += newCount;
+                    weapon._spareCount -= newCount;
+                else
+                    weapon._magCount += weapon._spareCount;
+                    weapon._spareCount = 0;
                 end
 
-                lastShot = tick();
+                modules.network:send("reload");
+            end
 
-                local player, scan, entry = getTarget(data);
-                if player and scan and entry then
-                    -- firerate bypass
-                    local syncedTime = modules.network:getTime();
-                    if deltaTime < fireRate then
-                        replicationTickOffset += fireRate - deltaTime;
-                        modules.network:send("repupdate", replicationPosition, replicationAngles, syncedTime);
-                    end
+            -- registering hit(s)
+            for _, bullet in next, bullets do
+                modules.network:send("bullethit", player, scan.target, part.Name, bullet[2], syncedTime);
+                modules.sound.PlaySound("hitmarker", nil, 1, 1.5);
+            end
 
-                    -- creating bullet(s)
-                    local bulletCount = data.pelletcount or 1;
-                    local bulletId = debug.getupvalue(weapon.fireRound, 10);
-                    local bullets = table.create(bulletCount, { scan.velocity, bulletId });
+            -- updating health
+            if pointers.rage_ragebot_shotlimiter then
+                health[player] = (health[player] or entry:getHealth()) - calculateDamage((scan.target - replicationPosition).Magnitude, part.Name, data) * bulletCount;
 
-                    for i, v in next, bullets do
-                        v[2] += i;
-                    end
-
-                    debug.setupvalue(weapon.fireRound, 10, bulletId + bulletCount);
-
-                    -- registering bullet(s)
-                    modules.network:send("newbullets", {
-                        firepos = scan.origin,
-                        camerapos = replicationPosition,
-                        bullets = bullets
-                    }, syncedTime);
-
-                    -- effects
-                    modules.sound.PlaySoundId(data.firesoundid, data.firevolume, data.firepitch, weapon._barrelPart, nil, 0, 0.05);
-                    modules.effects:muzzleflash(weapon._barrelPart, data.hideflash);
-
-                    for _, bullet in next, bullets do
-                        modules.particle.new({
-                            size = 0.2,
-                            bloom = 0.005,
-                            brightness = 400,
-                            dt = deltaTime,
-                            position = scan.origin,
-                            velocity = bullet[1],
-                            life = modules.settings.bulletLifeTime,
-                            acceleration = modules.settings.bulletAcceleration,
-                            color = data.bulletcolor or Color3.fromRGB(200, 70, 70),
-                            visualorigin = weapon._barrelPart.Position,
-                            physicsignore = ignoreList,
-                            penetrationdepth = data.penetrationdepth,
-                            tracerless = data.tracerless
-                        });
-                    end
-
-                    -- updating magazine
-                    weapon._magCount -= 1;
-                    if weapon._magCount < 1 then
-                        local newCount = data.magsize + (data.chamber and 1 or 0) + weapon._magCount;
-                        if weapon._spareCount >= newCount then
-                            weapon._magCount += newCount;
-                            weapon._spareCount -= newCount;
-                        else
-                            weapon._magCount += weapon._spareCount;
-                            weapon._spareCount = 0;
-                        end
-
-                        modules.network:send("reload");
-                    end
-
-                    -- registering hit(s)
-                    local hitPart = pointers.rage_ragebot_hitpart.current;
-                    for _, bullet in next, bullets do
-                        modules.network:send("bullethit", player, scan.target, hitPart, bullet[2], syncedTime);
-                        modules.sound.PlaySound("hitmarker", nil, 1, 1.5);
-                    end
-
-                    -- updating health
-                    if pointers.rage_ragebot_shotlimiter then
-                        health[player] = (health[player] or entry:getHealth()) - calculateDamage((scan.target - replicationPosition).Magnitude, hitPart, data) * bulletCount;
-
-                        if health[player] < 1 then
-                            task.wait(1);
-                            health[player] = nil;
-                        end
-                    end
+                if health[player] < 1 then
+                    task.wait(1);
+                    health[player] = nil;
                 end
             end
         end
