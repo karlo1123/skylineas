@@ -48,7 +48,7 @@ do -- ui
     theme.font = 3;
     theme.accent = Color3.new(math.random(), math.random(), math.random());
 
-    local window = ui:New({ name = "Skyline.technologies priv" });
+    local window = ui:New({ name = " Skyline.technologies " });
     window.uibind = Enum.KeyCode.RightShift;
     window.VisualPreview:SetPreviewState(false);
 
@@ -72,9 +72,9 @@ do -- ui
         local scanning = rage:Section({ name = "scanning", side = "right" });
         scanning:Toggle({ name = "enabled", pointer = "rage_scanning_enabled" });
         scanning:Toggle({ name = "fire position scanning", pointer = "rage_scanning_fireposscanning" });
-        scanning:Slider({ name = "fire position radius", min = 1, max = 20, decimals = 0.5, def = 8.5, pointer = "rage_scanning_fireposscanning_radius" });
+        scanning:Slider({ name = "fire position radius", min = 1, max = 15, decimals = 0.5, def = 8.5, pointer = "rage_scanning_fireposscanning_radius" });
         scanning:Toggle({ name = "target scanning", pointer = "rage_scanning_targetscanning" });
-        scanning:Slider({ name = "target radius", min = 1, max = 450, decimals = 0.5, def = 3.5, pointer = "rage_scanning_targetscanning_radius" });
+        scanning:Slider({ name = "target radius", min = 1, max = 600, decimals = 0.5, def = 3.5, pointer = "rage_scanning_targetscanning_radius" });
         --scanning:Toggle({ name = "teleport scanning", pointer = "rage_scanning_teleportscanning" });
         --scanning:Slider({ name = "teleport radius", min = 1, max = 150, decimals = 0.5, def = 100, pointer = "rage_scanning_teleportscanning_radius" });
         --scanning:Dropdown({ name = "teleport direction", options = {"up", "down"}, pointer = "rage_scanning_teleportscanning_direction" });
@@ -302,7 +302,7 @@ do -- ragebot
             end
 
             -- updating health
-            if pointers.rage_ragebot_shotlimiter then
+            if pointers.rage_ragebot_shotlimiter.current then
                 health[player] = (health[player] or entry:getHealth()) - calculateDamage((scan.target - replicationPosition).Magnitude, part.Name, data) * bulletCount;
 
                 if health[player] < 1 then
