@@ -59,7 +59,7 @@ do -- ui
         ragebot:Toggle({ name = "enabled", pointer = "rage_ragebot_enabled" });
         ragebot:Toggle({ name = "shot limiter", pointer = "rage_ragebot_shotlimiter" });
         ragebot:Toggle({ name = "custom firerate", pointer = "rage_ragebot_customfirerate" });
-        ragebot:Slider({ name = "firerate", min = 10, max = 1500, def = 250, pointer = "rage_ragebot_firerate" });
+        ragebot:Slider({ name = "firerate", min = 10, max = 4500, def = 250, pointer = "rage_ragebot_firerate" });
         ragebot:Dropdown({ name = "hitpart", options = {"head", "torso"}, pointer = "rage_ragebot_hitpart" });
         ragebot:Dropdown({ name = "target method", options = {"closest", "looking at"}, pointer = "rage_ragebot_targetmethod" });
 
