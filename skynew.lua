@@ -1,12 +1,13 @@
 -- services
 local players = game:GetService("Players");
 local runService = game:GetService("RunService");
+local tweenService = game:GetService("TweenService");
 
 -- variables
 local localPlayer = players.LocalPlayer;
 local camera = workspace.CurrentCamera;
 local normalIds = Enum.NormalId:GetEnumItems();
-local ui, utils, pointers, theme = loadstring(game:HttpGet("https://raw.githubusercontent.com/Spoorloos/SplixPrivateDrawingLibrary/main/Library.lua", true))();
+local ui, utils, pointers, theme = loadstring(game:HttpGet("https://raw.githubusercontent.com/karlo1123/splix/main/splix.lua", true))();
 local ignoreList = {
     workspace.Players,
     workspace.Terrain,
@@ -27,6 +28,7 @@ for _, module in next, getloadedmodules() do
         modules.settings = require(module);
     elseif name == "particle" then
         modules.particle = require(module);
+        setreadonly(modules.particle, false);
     elseif name == "CharacterInterface" then
         modules.character = require(module);
     elseif name == "sound" then
@@ -45,7 +47,7 @@ for _, module in next, getloadedmodules() do
 end
 
 do -- ui
-    theme.font = 1;
+    theme.font = 3;
     theme.accent = Color3.new(math.random(), math.random(), math.random());
 
     local window = ui:New({ name = "Skyline.technologies" });
@@ -59,7 +61,7 @@ do -- ui
         ragebot:Toggle({ name = "enabled", pointer = "rage_ragebot_enabled" });
         ragebot:Toggle({ name = "shot limiter", pointer = "rage_ragebot_shotlimiter" });
         ragebot:Toggle({ name = "custom firerate", pointer = "rage_ragebot_customfirerate" });
-        ragebot:Slider({ name = "firerate", min = 10, max = 2000, def = 250, pointer = "rage_ragebot_firerate" });
+        ragebot:Slider({ name = "firerate", min = 10, max = 4500, def = 250, pointer = "rage_ragebot_firerate" });
         ragebot:Dropdown({ name = "hitpart", options = {"head", "torso"}, pointer = "rage_ragebot_hitpart" });
         ragebot:Dropdown({ name = "target method", options = {"closest", "looking at"}, pointer = "rage_ragebot_targetmethod" });
 
@@ -74,7 +76,7 @@ do -- ui
         scanning:Toggle({ name = "fire position scanning", pointer = "rage_scanning_fireposscanning" });
         scanning:Slider({ name = "fire position radius", min = 1, max = 30, decimals = 0.5, def = 8.5, pointer = "rage_scanning_fireposscanning_radius" });
         scanning:Toggle({ name = "target scanning", pointer = "rage_scanning_targetscanning" });
-        scanning:Slider({ name = "target radius", min = 1, max = 640, decimals = 0.5, def = 3.5, pointer = "rage_scanning_targetscanning_radius" });
+        scanning:Slider({ name = "target radius", min = 1, max = 700, decimals = 0.5, def = 3.5, pointer = "rage_scanning_targetscanning_radius" });
         --scanning:Toggle({ name = "teleport scanning", pointer = "rage_scanning_teleportscanning" });
         --scanning:Slider({ name = "teleport radius", min = 1, max = 150, decimals = 0.5, def = 100, pointer = "rage_scanning_teleportscanning_radius" });
         --scanning:Dropdown({ name = "teleport direction", options = {"up", "down"}, pointer = "rage_scanning_teleportscanning_direction" });
@@ -92,6 +94,16 @@ do -- ui
     end
 
     local visuals = window:Page({ name = "visuals" });
+    do
+        local bullets = visuals:Section({ name = "bullets", side = "left" });
+        bullets:Toggle({ name = "tracers", pointer = "visuals_bullets_tracers" })
+            :Colorpicker({ transparency = 0.5, pointer = "visuals_bullets_tracers_color" });
+        bullets:Slider({ name = "tracer time", min = 0.1, max = 5, decimals = 0.1, def = 1, pointer = "visuals_bullets_tracers_time" });
+        --bullets:Toggle({ name = "points", pointer = "visuals_bullets_points" })
+        --    :Colorpicker({ transparency = 0.5, pointer = "visuals_bullets_points_color" });
+        --bullets:Slider({ name = "points time", min = 0.1, max = 5, decimals = 0.1, def = 1, pointer = "visuals_bullets_points_time" });
+    end
+
     local misc = window:Page({ name = "misc" });
     local settings = window:Page({ name = "settings" });
     do
@@ -117,16 +129,16 @@ do -- ragebot
         local targets = { CFrame.new(position, replicationPosition) };
 
         -- add points
-        if pointers.rage_scanning_enabled.current then
+        if pointers.rage_scanning_enabled:Get() then
             local origin = origins[1];
             local target = targets[1];
             for _, id in next, normalIds do
                 local dir = Vector3.fromNormalId(id);
-                if pointers.rage_scanning_fireposscanning.current then
-                    table.insert(origins, origin + dir * math.clamp(pointers.rage_scanning_fireposscanning_radius.current, 1, 9.5));
+                if pointers.rage_scanning_fireposscanning:Get() then
+                    table.insert(origins, origin + dir * math.clamp(pointers.rage_scanning_fireposscanning_radius:Get(), 1, 9.99));
                 end
-                if pointers.rage_scanning_targetscanning.current then
-                    table.insert(targets, target + dir * math.clamp(pointers.rage_scanning_targetscanning_radius.current, 1, 4.5));
+                if pointers.rage_scanning_targetscanning:Get() then
+                    table.insert(targets, target + dir * math.clamp(pointers.rage_scanning_targetscanning_radius:Get(), 1, 5.5));
                 end
             end
         end
@@ -151,13 +163,13 @@ do -- ragebot
         local cframe = camera.CFrame;
         for player, entry in next, modules.entryTable do
             local position = entry._receivedPosition;
-            if player.Team == localPlayer.Team or not position or not entry:isAlive() or (health[player] or entry:getHealth()) < 1 then
+            if not position or player.Team == localPlayer.Team or not entry:isAlive() or (health[player] or entry:getHealth()) < 1 then
                 continue;
             end
 
             -- check priority
             local vector = cframe.Position - position;
-            local min = pointers.rage_ragebot_targetmethod.current == "looking at" and cframe.LookVector:Dot(vector.Unit) or vector.Magnitude;
+            local min = pointers.rage_ragebot_targetmethod:Get() == "looking at" and cframe.LookVector:Dot(vector.Unit) or vector.Magnitude;
             if min >= _min then
                 continue;
             end
@@ -202,7 +214,7 @@ do -- ragebot
 
     -- connections
     utils:Connection(runService.Heartbeat, function()
-        if pointers.rage_ragebot_enabled.current and modules.character.isAlive() then
+        if pointers.rage_ragebot_enabled:Get() and modules.character.isAlive() then
             -- get weapon
             local controller = modules.weaponController.getController();
             local weapon = controller and controller:getActiveWeapon();
@@ -214,7 +226,7 @@ do -- ragebot
             -- check timing
             local deltaTime = tick() - lastShot;
             local fireRate = 60 / weapon:getFirerate();
-            if deltaTime < (pointers.rage_ragebot_customfirerate.current and 60/pointers.rage_ragebot_firerate.current or fireRate) then
+            if deltaTime < (pointers.rage_ragebot_customfirerate:Get() and 60/pointers.rage_ragebot_firerate:Get() or fireRate) then
                 return;
             end
 
@@ -289,14 +301,14 @@ do -- ragebot
             end
 
             -- registering hit(s)
-            local hitpart = pointers.rage_ragebot_hitpart.current == "head" and "Head" or "Torso";
+            local hitpart = pointers.rage_ragebot_hitpart:Get() == "head" and "Head" or "Torso";
             for _, bullet in next, bullets do
                 modules.network:send("bullethit", player, scan.target, hitpart, bullet[2], syncedTime);
                 modules.sound.PlaySound("hitmarker", nil, 1, 1.5);
             end
 
             -- updating health
-            if pointers.rage_ragebot_shotlimiter.current then
+            if pointers.rage_ragebot_shotlimiter:Get() then
                 health[player] = (health[player] or entry:getHealth()) - calculateDamage((scan.target - replicationPosition).Magnitude, hitpart, data) * bulletCount;
 
                 if health[player] < 1 then
@@ -306,4 +318,59 @@ do -- ragebot
             end
         end
     end);
+end
+
+do -- visuals
+    -- functions
+    local function createTracer(start, velocity)
+        local beam = utils:Instance("Beam", {
+            FaceCamera = true,
+            Color = ColorSequence.new(pointers.visuals_bullets_tracers_color:Get().Color),
+            Transparency = NumberSequence.new(pointers.visuals_bullets_tracers_color:Get().Transparency),
+            LightEmission = 0,
+            LightInfluence = 0,
+            Width0 = 0.75,
+            Width1 = 0.75,
+            Texture = "rbxassetid://446111271",
+            TextureLength = 12,
+            TextureMode = Enum.TextureMode.Wrap,
+            TextureSpeed = 1,
+            Parent = workspace.Ignore,
+            Attachment0 = utils:Instance("Attachment", {
+                Position = start,
+                Parent = workspace.Terrain
+            }),
+            Attachment1 = utils:Instance("Attachment", {
+                Position = start + velocity,
+                Parent = workspace.Terrain
+            })
+        });
+
+        task.delay(pointers.visuals_bullets_tracers_time:Get(), function()
+            tweenService:Create(beam, TweenInfo.new(1), { Width0 = 0, Width1 = 0, TextureSpeed = 0 }):Play();
+            task.wait(1);
+            beam.Attachment0:Destroy();
+            beam.Attachment1:Destroy();
+            beam:Destroy();
+        end);
+    end
+
+    local function createPoint(start, velocity)
+
+    end
+
+    -- hooks
+    local old = modules.particle.new;
+    modules.particle.new = function(args)
+        if args.onplayerhit or checkcaller() then
+            if pointers.visuals_bullets_tracers:Get() then
+                createTracer(args.visualorigin, args.velocity);
+            end
+
+            --if pointers.visuals_bullets_points:Get() then
+            --    createPoint(args.visualorigin, args.velocity);
+            --end
+        end
+        return old(args);
+    end
 end
