@@ -45,10 +45,10 @@ for _, module in next, getloadedmodules() do
 end
 
 do -- ui
-    theme.font = 3;
+    theme.font = 1;
     theme.accent = Color3.new(math.random(), math.random(), math.random());
 
-    local window = ui:New({ name = " Skyline.technologies " });
+    local window = ui:New({ name = "Skyline.technologies" });
     window.uibind = Enum.KeyCode.RightShift;
     window.VisualPreview:SetPreviewState(false);
 
@@ -59,7 +59,7 @@ do -- ui
         ragebot:Toggle({ name = "enabled", pointer = "rage_ragebot_enabled" });
         ragebot:Toggle({ name = "shot limiter", pointer = "rage_ragebot_shotlimiter" });
         ragebot:Toggle({ name = "custom firerate", pointer = "rage_ragebot_customfirerate" });
-        ragebot:Slider({ name = "firerate", min = 10, max = 4500, def = 250, pointer = "rage_ragebot_firerate" });
+        ragebot:Slider({ name = "firerate", min = 10, max = 2000, def = 250, pointer = "rage_ragebot_firerate" });
         ragebot:Dropdown({ name = "hitpart", options = {"head", "torso"}, pointer = "rage_ragebot_hitpart" });
         ragebot:Dropdown({ name = "target method", options = {"closest", "looking at"}, pointer = "rage_ragebot_targetmethod" });
 
@@ -147,38 +147,31 @@ do -- ragebot
 
     local function getTarget(data)
         local _min = math.huge;
-        local _player, _scan, _entry, _part;
+        local _player, _scan, _entry;
         local cframe = camera.CFrame;
         for player, entry in next, modules.entryTable do
-            if player.Team == localPlayer.Team or not entry:isAlive() or (health[player] or entry:getHealth()) < 1 then
-                continue;
-            end
-
-            -- get body part
-            local tpObject = entry and entry:getThirdPersonObject();
-            local part = tpObject and tpObject:getBodyPart(pointers.rage_ragebot_hitpart.current);
-            if not part then
+            local position = entry._receivedPosition;
+            if player.Team == localPlayer.Team or not position or not entry:isAlive() or (health[player] or entry:getHealth()) < 1 then
                 continue;
             end
 
             -- check priority
-            local dir = cframe.Position - part.Position;
-            local min = pointers.rage_ragebot_targetmethod.current == "looking at" and cframe.LookVector:Dot(dir.Unit) or dir.Magnitude;
+            local vector = cframe.Position - position;
+            local min = pointers.rage_ragebot_targetmethod.current == "looking at" and cframe.LookVector:Dot(vector.Unit) or vector.Magnitude;
             if min >= _min then
                 continue;
             end
 
             -- scan player
-            local scan = scanTarget(part.Position, data);
+            local scan = scanTarget(position, data);
             if scan then
                 _min = min;
                 _player = player;
                 _scan = scan;
                 _entry = entry;
-                _part = part;
             end
         end
-        return _player, _scan, _entry, _part;
+        return _player, _scan, _entry;
     end
 
     local function calculateDamage(distance, name, data)
@@ -228,7 +221,7 @@ do -- ragebot
             lastShot = tick();
 
             -- get target
-            local player, scan, entry, part = getTarget(data);
+            local player, scan, entry = getTarget(data);
             if not player then
                 return;
             end
@@ -296,14 +289,15 @@ do -- ragebot
             end
 
             -- registering hit(s)
+            local hitpart = pointers.rage_ragebot_hitpart.current == "head" and "Head" or "Torso";
             for _, bullet in next, bullets do
-                modules.network:send("bullethit", player, scan.target, part.Name, bullet[2], syncedTime);
+                modules.network:send("bullethit", player, scan.target, hitpart, bullet[2], syncedTime);
                 modules.sound.PlaySound("hitmarker", nil, 1, 1.5);
             end
 
             -- updating health
             if pointers.rage_ragebot_shotlimiter.current then
-                health[player] = (health[player] or entry:getHealth()) - calculateDamage((scan.target - replicationPosition).Magnitude, part.Name, data) * bulletCount;
+                health[player] = (health[player] or entry:getHealth()) - calculateDamage((scan.target - replicationPosition).Magnitude, hitpart, data) * bulletCount;
 
                 if health[player] < 1 then
                     task.wait(1);
